@@ -2,9 +2,10 @@
   "name": "gitlab-issues",
   "displayName": "Gitlab_issues",
   "description": "issues for users and groups",
-  "version": "0.0.1",
+  "publisher": "Danil",
+  "version": "1.0.0",
   "engines": {
-    "vscode": "^1.109.0"
+    "vscode": "^1.80.0"
   },
   "categories": [
     "Other"
@@ -12,12 +13,97 @@
   "activationEvents": [],
   "main": "./out/extension.js",
   "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "gitlab-issues",
+          "title": "Gitlab Issues",
+          "icon": "$(issues)"
+        }
+      ]
+    },
+    "views": {
+      "gitlab-issues": [
+        {
+          "id": "UsersGitlab",
+          "name": "Users Gitlab",
+          "icon": "$(person)",
+          "contextualTitle": "Gitlab Users Explorer",
+          "canSelectMany": false
+        },
+        {
+          "id": "FavoritesGitlab",
+          "name": "Favorites Gitlab",
+          "icon": "$(star)",
+          "contextualTitle": "Gitlab Favorites Explorer",
+          "canSelectMany": false
+        }
+      ]
+    },
     "commands": [
       {
-        "command": "gitlab-issues.helloWorld",
-        "title": "Hello World"
+        "command": "UsersGitlab.viewIssues",
+        "title": "📊 Show user issues",
+        "icon": "$(graph)"
+      },
+      {
+        "command": "UsersGitlab.addToFavorites",
+        "title": "⭐ Add to Favorites",
+        "icon": "$(star)"
+      },
+      {
+        "command": "FavoritesGitlab.removeFromFavorites",
+        "title": "⭐ Remove from Favorites",
+        "icon": "$(star-full)"
+      },
+      {
+        "command": "UsersGitlab.refreshEntry",
+        "title": "Refresh",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "FavoritesGitlab.refreshFavorites",
+        "title": "Refresh Favorites",
+        "icon": "$(refresh)"
       }
-    ]
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "UsersGitlab.refreshEntry",
+          "when": "view == UsersGitlab",
+          "group": "navigation@1"
+        },
+        {
+          "command": "FavoritesGitlab.refreshFavorites",
+          "when": "view == FavoritesGitlab",
+          "group": "navigation@1"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "UsersGitlab.addToFavorites",
+          "when": "view == UsersGitlab && viewItem == user",
+          "group": "inline"
+        },
+        {
+          "command": "FavoritesGitlab.removeFromFavorites",
+          "when": "view == FavoritesGitlab && viewItem == favorite-item",
+          "group": "inline"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "GitLab Issues",
+      "properties": {
+        "gitlabIssues.gitlabUrl": {
+          "type": "string",
+          "default": "",
+          "description": "GitLab instance URL",
+          "order": 0
+        }
+      }
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
@@ -28,7 +114,7 @@
     "test": "vscode-test"
   },
   "devDependencies": {
-    "@types/vscode": "^1.109.0",
+    "@types/vscode": "^1.80.0",
     "@types/mocha": "^10.0.7",
     "@types/node": "20.x",
     "@typescript-eslint/eslint-plugin": "^8.3.0",
@@ -37,5 +123,8 @@
     "typescript": "^5.5.4",
     "@vscode/test-cli": "^0.0.10",
     "@vscode/test-electron": "^2.4.1"
+  },
+  "dependencies": {
+    "axios": "^1.12.0"
   }
 }
