@@ -1,9 +1,9 @@
 {
     "name": "gitlab-issues",
-    "displayName": "Gitlab_issues",
+    "displayName": "Gitlab issues",
     "description": "issues for users and groups",
     "publisher": "Danil",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "icon": "assets/icon.png",
     "engines": {
         "vscode": "^1.80.0"

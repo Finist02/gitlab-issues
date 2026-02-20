@@ -41,6 +41,8 @@ export class GitlabUsersProvider implements vscode.TreeDataProvider<GitlabUser> 
     private readonly userFavorites = new UsersFavorite();
     private _sessionApi: GitLabApi | undefined;
     private _webviewMessageDisposable: vscode.Disposable | undefined;
+    private _currentUserId: string | undefined;
+    private _currentUserName: string | undefined;
 
     private readonly _onDidChangeTreeData = new vscode.EventEmitter<GitlabUser | undefined | void>();
     readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
@@ -133,6 +135,8 @@ export class GitlabUsersProvider implements vscode.TreeDataProvider<GitlabUser> 
 
         const issues = await api.getIssues(userId);
         this._sessionApi = api;
+        this._currentUserId = userId;
+        this._currentUserName = userName;
 
         this.setupWebviewMessageHandler();
 
@@ -166,20 +170,94 @@ export class GitlabUsersProvider implements vscode.TreeDataProvider<GitlabUser> 
         this.panelIssue.webview.options = { enableScripts: true };
         this._webviewMessageDisposable?.dispose();
         this._webviewMessageDisposable = this.panelIssue.webview.onDidReceiveMessage(
-            async (msg: { command: string; projectId?: string; issueIid?: string; url?: string }) => {
+            async (
+                msg: {
+                    command: string;
+                    projectId?: string;
+                    projectPath?: string;
+                    issueIid?: string;
+                    url?: string;
+                }
+            ) => {
                 if (msg.command === 'getComments' && msg.projectId && msg.issueIid && this._sessionApi) {
-                    const comments = await this._sessionApi.getIssueNotes(msg.projectId, msg.issueIid);
+                    const projectRef = (msg.projectPath || '').trim() || msg.projectId;
+                    const comments = await this._sessionApi.getIssueNotes(projectRef, msg.issueIid);
                     this.panelIssue?.webview.postMessage({
                         command: 'comments',
                         projectId: msg.projectId,
                         issueIid: msg.issueIid,
                         comments
                     });
+                } else if (
+                    msg.command === 'closeIssue' &&
+                    msg.projectId &&
+                    msg.issueIid &&
+                    this._sessionApi &&
+                    this._currentUserId &&
+                    this._currentUserName
+                ) {
+                    const projectRef = (msg.projectPath || '').trim() || msg.projectId;
+                    const ok = await this._sessionApi.updateIssue(projectRef, msg.issueIid, {
+                        state_event: 'close'
+                    });
+                    if (ok) {
+                        vscode.window.showInformationMessage(`Задача #${msg.issueIid} закрыта`);
+                        await this.refreshIssuesView();
+                    } else {
+                        vscode.window.showErrorMessage('Не удалось закрыть задачу');
+                    }
+                } else if (
+                    msg.command === 'reassignIssue' &&
+                    msg.projectId &&
+                    msg.issueIid &&
+                    this._sessionApi &&
+                    this._currentUserId &&
+                    this._currentUserName
+                ) {
+                    const projectRef = (msg.projectPath || '').trim() || msg.projectId;
+                    const members = await this._sessionApi.getProjectMembersAll(projectRef);
+                    const items = members.map((m) => ({
+                        label: m.name,
+                        description: `@${m.username}`,
+                        userId: m.id
+                    }));
+                    const selected = await vscode.window.showQuickPick(items, {
+                        title: 'Переназначить задачу',
+                        placeHolder: 'Выберите пользователя…',
+                        matchOnDescription: true
+                    });
+                    if (selected?.userId != null) {
+                        const ok = await this._sessionApi.updateIssue(projectRef, msg.issueIid, {
+                            assignee_ids: [selected.userId]
+                        });
+                        if (ok) {
+                            vscode.window.showInformationMessage(
+                                `Задача #${msg.issueIid} переназначена на ${selected.label}`
+                            );
+                            await this.refreshIssuesView();
+                        } else {
+                            vscode.window.showErrorMessage('Не удалось переназначить задачу');
+                        }
+                    }
                 } else if (msg.command === 'openExternal' && msg.url) {
                     vscode.env.openExternal(vscode.Uri.parse(msg.url));
                 }
             }
         );
+    }
+
+    private async refreshIssuesView(): Promise<void> {
+        if (
+            !this._sessionApi ||
+            !this._currentUserId ||
+            !this._currentUserName ||
+            !this.panelIssue
+        ) {
+            return;
+        }
+        const issues = await this._sessionApi.getIssues(this._currentUserId);
+        const html = this.buildIssuesHtml(issues, this._currentUserName);
+        this.panelIssue.webview.html = html;
     }
 
     private buildIssuesHtml(issues: unknown[], userName: string): string {

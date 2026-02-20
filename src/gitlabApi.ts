@@ -98,11 +98,44 @@ export class GitLabApi {
 
     async getIssueNotes(projectId: string, issueIid: string): Promise<GitlabNote[]> {
         try {
-            const path = `projects/${encodeURIComponent(projectId)}/issues/${issueIid}/notes?per_page=100`;
+            const path = `projects/${encodeURIComponent(projectId)}/issues/${issueIid}/notes?per_page=100&sort=asc`;
             const { data } = await this.client().get<GitlabNote[]>(this.apiPath(path));
             return (data ?? []).filter((n) => !n.system);
         } catch (error) {
             console.error('Error fetching issue notes:', error);
+            return [];
+        }
+    }
+
+    async updateIssue(
+        projectId: string,
+        issueIid: string,
+        params: { state_event?: 'close' | 'reopen'; assignee_ids?: number[] }
+    ): Promise<boolean> {
+        try {
+            const path = `projects/${encodeURIComponent(projectId)}/issues/${issueIid}`;
+            await this.client().put(this.apiPath(path), params);
+            return true;
+        } catch (error) {
+            console.error('Error updating issue:', error);
+            return false;
+        }
+    }
+
+    async getProjectMembersAll(projectId: string): Promise<GitlabMember[]> {
+        try {
+            const { data } = await this.client().get<GitlabMember[]>(
+                this.apiPath(`projects/${encodeURIComponent(projectId)}/members/all?per_page=100`)
+            );
+            const members = data ?? [];
+            const byId = new Map<number, GitlabMember>();
+            for (const m of members) {
+                const uid = m.id;
+                if (uid != null && !byId.has(uid)) byId.set(uid, m);
+            }
+            return Array.from(byId.values());
+        } catch (error) {
+            console.error('Error fetching project members (all):', error);
             return [];
         }
     }

@@ -15,7 +15,7 @@
 URL и токен запрашиваются при первой неудачной авторизации (или вручную — **Ctrl+Shift+P** → «Preferences: Open Settings» → `gitlabIssues.gitlabUrl`).
 
 - **URL GitLab** — адрес инстанса (например, `https://gitlab.com/`)
-- **Токен** — Personal Access Token с правами `read_api`, сохраняется в секретном хранилище
+- **Токен** — Personal Access Token, сохраняется в секретном хранилище
 
 ## Использование
 
