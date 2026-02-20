@@ -3,16 +3,17 @@
 import * as vscode from 'vscode';
 import { GitlabUser, GitlabUsersProvider } from './gitlabUsersProvider';
 import { FavoriteItem, UsersFavoritesTreeProvider } from './gitlabFavoriteProvider';
+import { AuthService } from './authService';
 
-// This method is called when your extension is activated
-// Your extension is activated the very first time the command is executed
 export function activate(context: vscode.ExtensionContext) {
 	const extensionPath = context.extensionPath;
-
-	const gitlabUsers = new GitlabUsersProvider(context, extensionPath);
+	const auth = new AuthService(context);
+	const gitlabUsers = new GitlabUsersProvider(context, extensionPath, auth);
 	const usersFavoritesProvider = new UsersFavoritesTreeProvider(extensionPath);
-	const treeView = vscode.window.createTreeView('UsersGitlab', { treeDataProvider: gitlabUsers });
-	const favoritesTreeView = vscode.window.createTreeView('FavoritesGitlab', { treeDataProvider: usersFavoritesProvider });
+	context.subscriptions.push(
+		vscode.window.createTreeView('UsersGitlab', { treeDataProvider: gitlabUsers }),
+		vscode.window.createTreeView('FavoritesGitlab', { treeDataProvider: usersFavoritesProvider })
+	);
 
 	context.subscriptions.push(vscode.commands.registerCommand('UsersGitlab.addToFavorites', (node: GitlabUser) => {
 		gitlabUsers.addToFavorites(node);
