@@ -37,8 +37,8 @@ export class UsersFavoritesTreeProvider implements vscode.TreeDataProvider<Favor
         return Promise.resolve(items);
     }
 
-    removeFromFavorites(item: FavoriteItem): void {
-        this.userFavorites.removeFromFavorites(item.id);
+    async removeFromFavorites(item: FavoriteItem): Promise<void> {
+        await this.userFavorites.removeFromFavorites(item.id);
         this.refresh();
     }
 }

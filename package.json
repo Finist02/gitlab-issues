@@ -3,7 +3,7 @@
     "displayName": "Gitlab issues",
     "description": "issues for users and groups",
     "publisher": "Danil",
-    "version": "1.1.1",
+    "version": "1.3.0",
     "icon": "assets/icon.png",
     "engines": {
         "vscode": "^1.80.0"
@@ -70,6 +70,11 @@
                 "command": "FavoritesGitlab.refreshFavorites",
                 "title": "Refresh Favorites",
                 "icon": "$(refresh)"
+            },
+            {
+                "command": "UsersGitlab.exportDailyStandup",
+                "title": "📅 Export daily standup (Markdown)",
+                "icon": "$(file-text)"
             }
         ],
         "menus": {
@@ -83,6 +88,11 @@
                     "command": "FavoritesGitlab.refreshFavorites",
                     "when": "view == FavoritesGitlab",
                     "group": "navigation@1"
+                },
+                {
+                    "command": "UsersGitlab.exportDailyStandup",
+                    "when": "view == FavoritesGitlab",
+                    "group": "navigation@2"
                 }
             ],
             "view/item/context": [
@@ -106,6 +116,37 @@
                     "default": "",
                     "description": "GitLab instance URL",
                     "order": 0
+                },
+                "gitlabIssues.favoriteUsers": {
+                    "type": "array",
+                    "default": [],
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "id": {
+                                "type": "string",
+                                "description": "GitLab user id (для API assignee_id)"
+                            },
+                            "label": {
+                                "type": "string",
+                                "description": "Отображаемое имя"
+                            }
+                        }
+                    },
+                    "markdownDescription": "Избранные пользователи для панели Favorites и экспорта дэйлика. Можно править вручную или через **Add to Favorites** в дереве.",
+                    "order": 1
+                },
+                "gitlabIssues.dailyExportFolder": {
+                    "type": "string",
+                    "default": "",
+                    "markdownDescription": "Папка для сохранения дэйлика (абсолютный путь или относительно корня workspace). Создаётся файл `Standup-YYYY-MM-DD.md`.",
+                    "order": 2
+                },
+                "gitlabIssues.dailyTemplatePath": {
+                    "type": "string",
+                    "default": "",
+                    "markdownDescription": "Необязательно: путь к `.md` шаблону. Плейсхолдеры: `{{date}}`, `{{dateLong}}`, `{{dateHuman}}`, `{{gitlabIssuesByUser}}`. Если пусто — встроенный шаблон.",
+                    "order": 3
                 }
             }
         }

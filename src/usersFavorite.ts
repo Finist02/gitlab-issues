@@ -2,79 +2,104 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 
-interface FavoriteEntry {
+export interface FavoriteEntry {
     id: string;
     label: string;
 }
 
-const FAVORITES_FILE = 'user-issue-favorites.json';
+const CONFIG_SECTION = 'gitlabIssues';
+const FAVORITES_KEY = 'favoriteUsers';
 
-function getFavoritesFilePath(): string {
-    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-    if (!workspaceRoot) {
-        throw new Error('Откройте папку в VS Code для использования расширения.');
-    }
-    const vsCodeDir = path.join(workspaceRoot, '.vscode');
-    if (!fs.existsSync(vsCodeDir)) {
-        fs.mkdirSync(vsCodeDir, { recursive: true });
-    }
-    return path.join(vsCodeDir, FAVORITES_FILE);
-}
+const LEGACY_FILE = 'user-issue-favorites.json';
 
-function loadJson<T>(filePath: string, defaultValue: T): T {
-    try {
-        if (fs.existsSync(filePath)) {
-            return JSON.parse(fs.readFileSync(filePath, 'utf-8')) as T;
+function normalizeEntries(raw: unknown): FavoriteEntry[] {
+    if (!Array.isArray(raw)) {
+        return [];
+    }
+    const out: FavoriteEntry[] = [];
+    for (const item of raw) {
+        if (item && typeof item === 'object' && 'id' in item) {
+            const id = String((item as { id: unknown }).id);
+            const label = String((item as { label?: unknown }).label ?? '');
+            if (id) {
+                out.push({ id, label });
+            }
         }
-    } catch {
-        // ignore
     }
-    return defaultValue;
+    return out;
 }
 
-function saveJson<T>(filePath: string, data: T): void {
-    const dir = path.dirname(filePath);
-    if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
+/**
+ * Одноразовый перенос из `.vscode/user-issue-favorites.json` в настройки, если избранное в конфиге пустое.
+ */
+export async function migrateLegacyFavoritesIfNeeded(): Promise<void> {
+    const conf = vscode.workspace.getConfiguration(CONFIG_SECTION);
+    const current = normalizeEntries(conf.get(FAVORITES_KEY));
+    if (current.length > 0) {
+        return;
     }
-    fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+
+    const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    if (!root) {
+        return;
+    }
+
+    const legacyPath = path.join(root, '.vscode', LEGACY_FILE);
+    if (!fs.existsSync(legacyPath)) {
+        return;
+    }
+
+    try {
+        const data = JSON.parse(fs.readFileSync(legacyPath, 'utf-8')) as unknown;
+        const migrated = normalizeEntries(data);
+        if (migrated.length === 0) {
+            return;
+        }
+        await conf.update(FAVORITES_KEY, migrated, vscode.ConfigurationTarget.Global);
+        fs.unlinkSync(legacyPath);
+    } catch {
+        // ignore corrupt legacy file
+    }
 }
 
 export class UsersFavorite {
     private favorites: FavoriteEntry[] = [];
-    private readonly filePath: string;
 
     constructor() {
-        this.filePath = getFavoritesFilePath();
         this.load();
     }
 
     private load(): void {
-        const data = loadJson<FavoriteEntry[]>(this.filePath, []);
-        this.favorites = Array.isArray(data) ? data : [];
+        const conf = vscode.workspace.getConfiguration(CONFIG_SECTION);
+        this.favorites = normalizeEntries(conf.get(FAVORITES_KEY));
     }
 
-    private save(): void {
-        saveJson(this.filePath, this.favorites);
+    private async persist(): Promise<void> {
+        const conf = vscode.workspace.getConfiguration(CONFIG_SECTION);
+        await conf.update(FAVORITES_KEY, this.favorites, vscode.ConfigurationTarget.Global);
     }
 
-    addToFavorites(id: string, label: string): void {
+    async addToFavorites(id: string, label: string): Promise<void> {
+        this.load();
         if (!this.favorites.some((f) => f.id === id)) {
             this.favorites.push({ id, label });
-            this.save();
+            await this.persist();
         }
     }
 
-    removeFromFavorites(id: string): void {
+    async removeFromFavorites(id: string): Promise<void> {
+        this.load();
         this.favorites = this.favorites.filter((f) => f.id !== id);
-        this.save();
+        await this.persist();
     }
 
     isFavorite(id: string): boolean {
+        this.load();
         return this.favorites.some((f) => f.id === id);
     }
 
     getFavorites(): FavoriteEntry[] {
+        this.load();
         return [...this.favorites];
     }
 }

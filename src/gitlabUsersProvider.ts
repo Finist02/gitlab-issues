@@ -119,9 +119,9 @@ export class GitlabUsersProvider implements vscode.TreeDataProvider<GitlabUser> 
         return result;
     }
 
-    addToFavorites(node: GitlabUser): void {
+    async addToFavorites(node: GitlabUser): Promise<void> {
         if (node.nodeType === TreeNodeType.User && node.command?.arguments?.[0]) {
-            this.userFavorites.addToFavorites(node.command.arguments[0], node.label);
+            await this.userFavorites.addToFavorites(node.command.arguments[0], node.label);
         }
     }
 
