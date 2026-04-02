@@ -6,9 +6,7 @@ import { FavoriteItem, UsersFavoritesTreeProvider } from './gitlabFavoriteProvid
 import { AuthService } from './authService';
 import { exportDailyStandup } from './dailyStandupExport';
 import { migrateLegacyFavoritesIfNeeded } from './usersFavorite';
-import { selectProjectProfile } from './projectProfileCommands';
 import { exportProjectOverview } from './projectExport';
-import { refreshProjectStatusBar } from './projectProfileStatusBar';
 
 export function activate(context: vscode.ExtensionContext) {
 	const extensionPath = context.extensionPath;
@@ -22,21 +20,10 @@ export function activate(context: vscode.ExtensionContext) {
 		vscode.window.createTreeView('FavoritesGitlab', { treeDataProvider: usersFavoritesProvider })
 	);
 
-	const projectStatusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
-	projectStatusBar.command = 'UsersGitlab.selectProjectProfile';
-	refreshProjectStatusBar(projectStatusBar);
-	context.subscriptions.push(projectStatusBar);
-
 	context.subscriptions.push(
 		vscode.workspace.onDidChangeConfiguration((e) => {
 			if (e.affectsConfiguration('gitlabIssues.favoriteUsers')) {
 				usersFavoritesProvider.refresh();
-			}
-			if (
-				e.affectsConfiguration('gitlabIssues.projectProfiles') ||
-				e.affectsConfiguration('gitlabIssues.activeProjectProfileId')
-			) {
-				refreshProjectStatusBar(projectStatusBar);
 			}
 		})
 	);
@@ -55,12 +42,6 @@ export function activate(context: vscode.ExtensionContext) {
 	);
 	context.subscriptions.push(
 		vscode.commands.registerCommand('UsersGitlab.exportDailyStandup', () => exportDailyStandup(auth))
-	);
-	context.subscriptions.push(
-		vscode.commands.registerCommand('UsersGitlab.selectProjectProfile', async () => {
-			await selectProjectProfile();
-			refreshProjectStatusBar(projectStatusBar);
-		})
 	);
 	context.subscriptions.push(
 		vscode.commands.registerCommand('UsersGitlab.exportProjectOverview', () => exportProjectOverview(auth))

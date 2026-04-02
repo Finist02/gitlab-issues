@@ -3,7 +3,7 @@
     "displayName": "Gitlab issues",
     "description": "issues for users and groups",
     "publisher": "Danil",
-    "version": "1.6.1",
+    "version": "1.7.0",
     "icon": "assets/icon.png",
     "engines": {
         "vscode": "^1.80.0"
@@ -77,11 +77,6 @@
                 "icon": "$(file-text)"
             },
             {
-                "command": "UsersGitlab.selectProjectProfile",
-                "title": "GitLab Issues: 📂 Select project profile",
-                "icon": "$(folder)"
-            },
-            {
                 "command": "UsersGitlab.exportProjectOverview",
                 "title": "GitLab Issues: 📊 Export project overview (Markdown)",
                 "icon": "$(graph)"
@@ -90,14 +85,9 @@
         "menus": {
             "view/title": [
                 {
-                    "command": "UsersGitlab.selectProjectProfile",
-                    "when": "view == UsersGitlab",
-                    "group": "navigation@2"
-                },
-                {
                     "command": "UsersGitlab.exportProjectOverview",
                     "when": "view == UsersGitlab",
-                    "group": "navigation@3"
+                    "group": "navigation@2"
                 },
                 {
                     "command": "UsersGitlab.refreshEntry",
@@ -180,43 +170,37 @@
                     "markdownDescription": "Логические проекты из **нескольких** репозиториев GitLab. Пример: `{ \"id\": \"mes\", \"label\": \"MES\", \"gitlabProjectRefs\": [\"group/front\", \"group/api\"] }`.",
                     "order": 2
                 },
-                "gitlabIssues.activeProjectProfileId": {
-                    "type": "string",
-                    "default": "",
-                    "markdownDescription": "Id активного профиля из `projectProfiles` (заполняется командой **Select project profile**).",
-                    "order": 3
-                },
                 "gitlabIssues.dailyExportFolder": {
                     "type": "string",
                     "default": "",
                     "markdownDescription": "Папка для сохранения дэйлика (абсолютный путь или относительно корня workspace). Создаётся файл `Standup-YYYY-MM-DD.md`.",
-                    "order": 4
+                    "order": 3
                 },
                 "gitlabIssues.dailyTemplatePath": {
                     "type": "string",
                     "default": "",
                     "markdownDescription": "Необязательно: путь к `.md` шаблону. Плейсхолдеры: `{{date}}`, `{{dateLong}}`, `{{dateHuman}}`, `{{currentTasksByUser}}` (задачи «в процессе» по лейблам как в Gantt), `{{gitlabIssuesByUser}}`. Если пусто — встроенный шаблон.",
-                    "order": 5
+                    "order": 4
                 },
                 "gitlabIssues.projectExportFolder": {
                     "type": "string",
                     "default": "",
                     "markdownDescription": "Базовая папка для **обзора проекта**: внутри создаётся подпапка с **id профиля**, файл — только дата: `{base}/{id}/YYYY-MM-DD.md`. Если пусто — используется `dailyExportFolder`.",
-                    "order": 6
+                    "order": 5
                 },
                 "gitlabIssues.ganttLabelsDone": {
                     "type": "array",
                     "default": [],
                     "items": { "type": "string" },
                     "markdownDescription": "Имена лейблов GitLab → статус Mermaid **done** в Gantt. **Пустой массив** — встроенный набор: `Отработано`, `Отработано: развернуто`, `UnderValidation`.",
-                    "order": 7
+                    "order": 6
                 },
                 "gitlabIssues.ganttLabelsActive": {
                     "type": "array",
                     "default": [],
                     "items": { "type": "string" },
                     "markdownDescription": "Имена лейблов → **active** в Gantt. **Пустой массив** — по умолчанию: `В процессе`.",
-                    "order": 8
+                    "order": 7
                 }
             }
         }

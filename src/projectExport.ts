@@ -3,7 +3,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { AuthService } from './authService';
 import { GitLabApi, type GitlabIssue } from './gitlabApi';
-import { getActiveProjectProfile } from './projectProfileService';
+import { getProjectProfiles, type ProjectProfile } from './projectProfileService';
 import {
     classifyIssueGanttStatus,
     getGanttLabelRules,
@@ -122,10 +122,10 @@ function buildBacklogList(issues: GitlabIssue[]): string {
 }
 
 export async function exportProjectOverview(auth: AuthService): Promise<void> {
-    const profile = getActiveProjectProfile();
-    if (!profile) {
+    const profiles = getProjectProfiles();
+    if (profiles.length === 0) {
         void vscode.window.showErrorMessage(
-            'Выберите профиль проекта: команда «GitLab Issues: Select project profile» или настройка gitlabIssues.activeProjectProfileId. Задайте gitlabIssues.projectProfiles.'
+            'Задайте gitlabIssues.projectProfiles в настройках (id, label, gitlabProjectRefs).'
         );
         return;
     }
@@ -156,116 +156,134 @@ export async function exportProjectOverview(auth: AuthService): Promise<void> {
         return;
     }
 
-    const profileDirName = slugFile(profile.id);
-    const targetDir = path.join(folderResolved, profileDirName);
-
     try {
         if (!fs.existsSync(folderResolved)) {
             fs.mkdirSync(folderResolved, { recursive: true });
         }
-        if (!fs.existsSync(targetDir)) {
-            fs.mkdirSync(targetDir, { recursive: true });
-        }
     } catch {
-        void vscode.window.showErrorMessage(`Не удалось создать папку: ${targetDir}`);
+        void vscode.window.showErrorMessage(`Не удалось создать папку: ${folderResolved}`);
         return;
     }
 
-    const api = new GitLabApi(creds.url, creds.token);
+    const picks = [
+        { label: 'Все профили', description: `${profiles.length} шт.`, profile: undefined as ProjectProfile | undefined },
+        ...profiles.map((p) => ({ label: p.label, description: p.id, profile: p }))
+    ];
+    const picked = await vscode.window.showQuickPick(picks, {
+        title: 'GitLab Issues: Export project overview',
+        placeHolder: 'Выберите один профиль или выгрузку всех профилей'
+    });
+    if (!picked) return;
 
-    const merged = new Map<number, GitlabIssue>();
-    await vscode.window.withProgress(
-        {
-            location: vscode.ProgressLocation.Notification,
-            title: `Загрузка issues: ${profile.label}…`,
-            cancellable: false
-        },
-        async () => {
-            for (const projectRef of profile.gitlabProjectRefs) {
-                const list = await api.getProjectIssuesOpened(projectRef);
-                for (const issue of list) {
-                    merged.set(issue.id, issue);
+    const selected = picked.profile ? [picked.profile] : profiles;
+    const api = new GitLabApi(creds.url, creds.token);
+    const createdPaths: string[] = [];
+
+    for (const profile of selected) {
+        const profileDirName = slugFile(profile.id);
+        const targetDir = path.join(folderResolved, profileDirName);
+        try {
+            if (!fs.existsSync(targetDir)) {
+                fs.mkdirSync(targetDir, { recursive: true });
+            }
+        } catch {
+            void vscode.window.showErrorMessage(`Не удалось создать папку: ${targetDir}`);
+            continue;
+        }
+
+        const merged = new Map<number, GitlabIssue>();
+        await vscode.window.withProgress(
+            {
+                location: vscode.ProgressLocation.Notification,
+                title: `Загрузка issues: ${profile.label}…`,
+                cancellable: false
+            },
+            async () => {
+                for (const projectRef of profile.gitlabProjectRefs) {
+                    const list = await api.getProjectIssuesOpened(projectRef);
+                    for (const issue of list) {
+                        merged.set(issue.id, issue);
+                    }
                 }
             }
-        }
-    );
-
-    const all = Array.from(merged.values());
-
-    const hasDueDate = (i: GitlabIssue): boolean => {
-        const d = i.due_date;
-        if (d === undefined || d === null) {
-            return false;
-        }
-        return String(d).trim() !== '';
-    };
-
-    const withDue = all
-        .filter((i) => hasDueDate(i))
-        .sort((a, b) => {
-            const da = String(a.due_date);
-            const db = String(b.due_date);
-            if (da !== db) {
-                return da.localeCompare(db);
-            }
-            return a.title.localeCompare(b.title);
-        });
-    const withoutDue = all
-        .filter((i) => !hasDueDate(i))
-        .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
-
-    const iso = new Date().toISOString().slice(0, 10);
-    const longRu = new Date().toLocaleDateString('ru-RU', {
-        weekday: 'long',
-        day: 'numeric',
-        month: 'long',
-        year: 'numeric'
-    });
-
-    const body = [
-        `## Проект: ${profile.label}`,
-        '',
-        `- **Профиль:** \`${profile.id}\``,
-        `- **Репозитории:** ${profile.gitlabProjectRefs.map((r) => `\`${r}\``).join(', ')}`,
-        `- **Дата выгрузки:** ${longRu}`,
-        `- **Всего открытых задач:** ${all.length} (со сроком: ${withDue.length}, без срока: ${withoutDue.length})`,
-        '',
-        '### Диаграмма (Mermaid Gantt)',
-        '',
-        buildMermaidGantt(withDue),
-        '',
-        '### Без срока',
-        '',
-        buildBacklogList(withoutDue),
-        '',
-        '---',
-        '_Сгенерировано расширением GitLab Issues._'
-    ].join('\n');
-
-    const fileName = `${iso}.md`;
-    const outPath = path.join(targetDir, fileName);
-
-    if (fs.existsSync(outPath)) {
-        const choice = await vscode.window.showWarningMessage(
-            `Файл уже существует: ${fileName}`,
-            'Перезаписать',
-            'Отмена'
         );
-        if (choice !== 'Перезаписать') {
-            return;
+
+        const all = Array.from(merged.values());
+        const hasDueDate = (i: GitlabIssue): boolean => {
+            const d = i.due_date;
+            if (d === undefined || d === null) {
+                return false;
+            }
+            return String(d).trim() !== '';
+        };
+        const withDue = all
+            .filter((i) => hasDueDate(i))
+            .sort((a, b) => {
+                const da = String(a.due_date);
+                const db = String(b.due_date);
+                if (da !== db) {
+                    return da.localeCompare(db);
+                }
+                return a.title.localeCompare(b.title);
+            });
+        const withoutDue = all
+            .filter((i) => !hasDueDate(i))
+            .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+
+        const iso = new Date().toISOString().slice(0, 10);
+        const longRu = new Date().toLocaleDateString('ru-RU', {
+            weekday: 'long',
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric'
+        });
+        const body = [
+            `## Проект: ${profile.label}`,
+            '',
+            `- **Профиль:** \`${profile.id}\``,
+            `- **Репозитории:** ${profile.gitlabProjectRefs.map((r) => `\`${r}\``).join(', ')}`,
+            `- **Дата выгрузки:** ${longRu}`,
+            `- **Всего открытых задач:** ${all.length} (со сроком: ${withDue.length}, без срока: ${withoutDue.length})`,
+            '',
+            '### Диаграмма (Mermaid Gantt)',
+            '',
+            buildMermaidGantt(withDue),
+            '',
+            '### Без срока',
+            '',
+            buildBacklogList(withoutDue),
+            '',
+            '---',
+            '_Сгенерировано расширением GitLab Issues._'
+        ].join('\n');
+
+        const fileName = `${iso}.md`;
+        const outPath = path.join(targetDir, fileName);
+        if (fs.existsSync(outPath)) {
+            const choice = await vscode.window.showWarningMessage(
+                `Файл уже существует для ${profile.label}: ${fileName}`,
+                'Перезаписать',
+                'Пропустить',
+                'Отмена'
+            );
+            if (choice === 'Отмена') return;
+            if (choice !== 'Перезаписать') continue;
+        }
+        try {
+            fs.writeFileSync(outPath, body, 'utf-8');
+            createdPaths.push(outPath);
+        } catch {
+            void vscode.window.showErrorMessage(`Не удалось записать: ${outPath}`);
         }
     }
 
-    try {
-        fs.writeFileSync(outPath, body, 'utf-8');
-    } catch {
-        void vscode.window.showErrorMessage(`Не удалось записать: ${outPath}`);
+    if (createdPaths.length === 0) {
+        void vscode.window.showWarningMessage('Файлы обзора проекта не были сохранены.');
         return;
     }
-
-    void vscode.window.showInformationMessage(`Обзор проекта сохранён: ${outPath}`);
+    void vscode.window.showInformationMessage(`Сохранено файлов: ${createdPaths.length}`);
     try {
-        const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(outPath));
+        const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(createdPaths[0]));
         await vscode.window.showTextDocument(doc);
     } catch {
         // ignore

@@ -38,22 +38,3 @@ export function getProjectProfiles(): ProjectProfile[] {
     const conf = vscode.workspace.getConfiguration(CONFIG);
     return normalizeProfiles(conf.get('projectProfiles'));
 }
-
-export function getActiveProjectProfileId(): string | undefined {
-    const v = vscode.workspace.getConfiguration(CONFIG).get<string>('activeProjectProfileId');
-    const t = v?.trim();
-    return t || undefined;
-}
-
-export async function setActiveProjectProfileId(id: string | undefined): Promise<void> {
-    const conf = vscode.workspace.getConfiguration(CONFIG);
-    await conf.update('activeProjectProfileId', id ?? '', vscode.ConfigurationTarget.Global);
-}
-
-export function getActiveProjectProfile(): ProjectProfile | undefined {
-    const activeId = getActiveProjectProfileId();
-    if (!activeId) {
-        return undefined;
-    }
-    return getProjectProfiles().find((p) => p.id === activeId);
-}
