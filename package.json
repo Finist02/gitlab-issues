@@ -3,7 +3,7 @@
     "displayName": "Gitlab issues",
     "description": "issues for users and groups",
     "publisher": "Danil",
-    "version": "1.3.0",
+    "version": "1.6.1",
     "icon": "assets/icon.png",
     "engines": {
         "vscode": "^1.80.0"
@@ -48,37 +48,57 @@
         "commands": [
             {
                 "command": "UsersGitlab.viewIssues",
-                "title": "📊 Show user issues",
+                "title": "GitLab Issues: 📊 Show user issues",
                 "icon": "$(graph)"
             },
             {
                 "command": "UsersGitlab.addToFavorites",
-                "title": "⭐ Add to Favorites",
+                "title": "GitLab Issues: ⭐ Add to Favorites",
                 "icon": "$(star)"
             },
             {
                 "command": "FavoritesGitlab.removeFromFavorites",
-                "title": "⭐ Remove from Favorites",
+                "title": "GitLab Issues: ⭐ Remove from Favorites",
                 "icon": "$(star-full)"
             },
             {
                 "command": "UsersGitlab.refreshEntry",
-                "title": "Refresh",
+                "title": "GitLab Issues: Refresh users tree",
                 "icon": "$(refresh)"
             },
             {
                 "command": "FavoritesGitlab.refreshFavorites",
-                "title": "Refresh Favorites",
+                "title": "GitLab Issues: Refresh favorites",
                 "icon": "$(refresh)"
             },
             {
                 "command": "UsersGitlab.exportDailyStandup",
-                "title": "📅 Export daily standup (Markdown)",
+                "title": "GitLab Issues: 📅 Export daily standup (Markdown)",
                 "icon": "$(file-text)"
+            },
+            {
+                "command": "UsersGitlab.selectProjectProfile",
+                "title": "GitLab Issues: 📂 Select project profile",
+                "icon": "$(folder)"
+            },
+            {
+                "command": "UsersGitlab.exportProjectOverview",
+                "title": "GitLab Issues: 📊 Export project overview (Markdown)",
+                "icon": "$(graph)"
             }
         ],
         "menus": {
             "view/title": [
+                {
+                    "command": "UsersGitlab.selectProjectProfile",
+                    "when": "view == UsersGitlab",
+                    "group": "navigation@2"
+                },
+                {
+                    "command": "UsersGitlab.exportProjectOverview",
+                    "when": "view == UsersGitlab",
+                    "group": "navigation@3"
+                },
                 {
                     "command": "UsersGitlab.refreshEntry",
                     "when": "view == UsersGitlab",
@@ -136,17 +156,67 @@
                     "markdownDescription": "Избранные пользователи для панели Favorites и экспорта дэйлика. Можно править вручную или через **Add to Favorites** в дереве.",
                     "order": 1
                 },
+                "gitlabIssues.projectProfiles": {
+                    "type": "array",
+                    "default": [],
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "id": {
+                                "type": "string",
+                                "description": "Уникальный ключ профиля (латиница)"
+                            },
+                            "label": {
+                                "type": "string",
+                                "description": "Название в UI и статус-баре"
+                            },
+                            "gitlabProjectRefs": {
+                                "type": "array",
+                                "items": { "type": "string" },
+                                "description": "Пути `namespace/project` или id проекта GitLab"
+                            }
+                        }
+                    },
+                    "markdownDescription": "Логические проекты из **нескольких** репозиториев GitLab. Пример: `{ \"id\": \"mes\", \"label\": \"MES\", \"gitlabProjectRefs\": [\"group/front\", \"group/api\"] }`.",
+                    "order": 2
+                },
+                "gitlabIssues.activeProjectProfileId": {
+                    "type": "string",
+                    "default": "",
+                    "markdownDescription": "Id активного профиля из `projectProfiles` (заполняется командой **Select project profile**).",
+                    "order": 3
+                },
                 "gitlabIssues.dailyExportFolder": {
                     "type": "string",
                     "default": "",
                     "markdownDescription": "Папка для сохранения дэйлика (абсолютный путь или относительно корня workspace). Создаётся файл `Standup-YYYY-MM-DD.md`.",
-                    "order": 2
+                    "order": 4
                 },
                 "gitlabIssues.dailyTemplatePath": {
                     "type": "string",
                     "default": "",
-                    "markdownDescription": "Необязательно: путь к `.md` шаблону. Плейсхолдеры: `{{date}}`, `{{dateLong}}`, `{{dateHuman}}`, `{{gitlabIssuesByUser}}`. Если пусто — встроенный шаблон.",
-                    "order": 3
+                    "markdownDescription": "Необязательно: путь к `.md` шаблону. Плейсхолдеры: `{{date}}`, `{{dateLong}}`, `{{dateHuman}}`, `{{currentTasksByUser}}` (задачи «в процессе» по лейблам как в Gantt), `{{gitlabIssuesByUser}}`. Если пусто — встроенный шаблон.",
+                    "order": 5
+                },
+                "gitlabIssues.projectExportFolder": {
+                    "type": "string",
+                    "default": "",
+                    "markdownDescription": "Базовая папка для **обзора проекта**: внутри создаётся подпапка с **id профиля**, файл — только дата: `{base}/{id}/YYYY-MM-DD.md`. Если пусто — используется `dailyExportFolder`.",
+                    "order": 6
+                },
+                "gitlabIssues.ganttLabelsDone": {
+                    "type": "array",
+                    "default": [],
+                    "items": { "type": "string" },
+                    "markdownDescription": "Имена лейблов GitLab → статус Mermaid **done** в Gantt. **Пустой массив** — встроенный набор: `Отработано`, `Отработано: развернуто`, `UnderValidation`.",
+                    "order": 7
+                },
+                "gitlabIssues.ganttLabelsActive": {
+                    "type": "array",
+                    "default": [],
+                    "items": { "type": "string" },
+                    "markdownDescription": "Имена лейблов → **active** в Gantt. **Пустой массив** — по умолчанию: `В процессе`.",
+                    "order": 8
                 }
             }
         }

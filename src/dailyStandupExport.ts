@@ -4,18 +4,20 @@ import * as fs from 'fs';
 import { UsersFavorite } from './usersFavorite';
 import { AuthService } from './authService';
 import { GitLabApi, type GitlabIssue } from './gitlabApi';
+import { issueIsInProgressByGanttLabels } from './ganttLabelRules';
 
 const CONFIG_SECTION = 'gitlabIssues';
 
-/** Встроенный шаблон; свой — через dailyTemplatePath, плейсхолдеры: {{date}}, {{dateLong}}, {{dateHuman}}, {{gitlabIssuesByUser}} */
+/** Встроенный шаблон; свой — через dailyTemplatePath; плейсхолдеры: {{date}}, {{dateLong}}, {{dateHuman}}, {{currentTasksByUser}}, {{gitlabIssuesByUser}} */
 export const DEFAULT_DAILY_TEMPLATE = `## Стендап — {{dateLong}}
 
 ### 🎯 Общая информация
 - **Дата:** {{dateHuman}}
 - **Время стендапа:** 
 
-#### 📝 Новые задачи
-- [ ] 
+#### 📝 Текущие задачи
+
+{{currentTasksByUser}}
 
 #### 📋 Общие блокеры и риски
 - [ ] 
@@ -52,9 +54,9 @@ function sanitizeIssueTitle(title: string): string {
     return title.replace(/\s+/g, ' ').trim().replace(/\]/g, '\\]');
 }
 
-function buildIssuesMarkdown(issues: GitlabIssue[]): string {
+function buildIssuesMarkdown(issues: GitlabIssue[], emptyHint = 'Нет открытых задач'): string {
     if (issues.length === 0) {
-        return '- _Нет открытых задач_';
+        return `- _${emptyHint}_`;
     }
     return issues
         .map((issue) => {
@@ -73,6 +75,21 @@ function buildGitlabIssuesByUserSection(entries: { name: string; issues: GitlabI
         parts.push(buildIssuesMarkdown(issues));
         if (issues.length >= 50) {
             parts.push('\n\n_Показано не более 50 открытых задач (лимит API)._');
+        }
+        parts.push('\n\n');
+    }
+    return parts.join('').trimEnd();
+}
+
+/** Задачи «в процессе» по `ganttLabelsActive` (как active в Gantt), по людям. */
+function buildCurrentTasksByUserSection(entries: { name: string; issues: GitlabIssue[] }[]): string {
+    const parts: string[] = [];
+    for (const { name, issues } of entries) {
+        const inProgress = issues.filter((i) => issueIsInProgressByGanttLabels(i));
+        parts.push(`#### ${name}\n`);
+        parts.push(buildIssuesMarkdown(inProgress, 'Нет задач в процессе (по лейблам)'));
+        if (issues.length >= 50) {
+            parts.push('\n\n_Список открытых задач ограничен 50 (API); «в процессе» среди них._');
         }
         parts.push('\n\n');
     }
@@ -182,11 +199,13 @@ export async function exportDailyStandup(auth: AuthService): Promise<void> {
     }
 
     const gitlabBlock = buildGitlabIssuesByUserSection(entries);
+    const currentTasksBlock = buildCurrentTasksByUserSection(entries);
 
     const output = templateContent
         .replace(/\{\{date\}\}/g, iso)
         .replace(/\{\{dateLong\}\}/g, longRu)
         .replace(/\{\{dateHuman\}\}/g, shortHuman)
+        .replace(/\{\{currentTasksByUser\}\}/g, currentTasksBlock)
         .replace(/\{\{gitlabIssuesByUser\}\}/g, gitlabBlock);
 
     const fileName = `${iso}.md`;
